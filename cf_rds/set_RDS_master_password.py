@@ -5,6 +5,7 @@
 Lambda function to fetch from DynamoDb the Master user and password of an RDS Instance
 
 """
+
 import base64
 import json
 import random

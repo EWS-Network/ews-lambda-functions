@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+import base64
+import json
+import string
 import uuid
 import httplib
 import urlparse
