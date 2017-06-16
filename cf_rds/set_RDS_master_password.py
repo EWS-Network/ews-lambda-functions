@@ -6,7 +6,6 @@ Lambda function to fetch from DynamoDb the Master user and password of an RDS In
 
 """
 import base64
-import boto3
 import json
 import random
 import string
@@ -14,12 +13,16 @@ import hashlib
 import uuid
 import httplib
 import urlparse
-
+import boto3
 from boto3.dynamodb.conditions import Key, Attr
 
-def put_password_in_dynamodb(table_name, stack_name,
-                             user_name, b64_encrypted_password,
-                             attribute_name, update=False):
+
+def put_password_in_dynamodb(table_name,
+                             stack_name,
+                             user_name,
+                             b64_encrypted_password,
+                             attribute_name,
+                             update=False):
     """
     Function to store the b64 password in DynamoDB
     :param table_name: Name of the table
@@ -60,7 +63,9 @@ def put_password_in_dynamodb(table_name, stack_name,
             return {'added': False, 'Reason': e}
 
 
-def add_master_creds(table_name, stack_name, key_id):
+def add_master_creds(table_name,
+                     stack_name,
+                     key_id):
     """
     Master function
     """
@@ -68,13 +73,14 @@ def add_master_creds(table_name, stack_name, key_id):
     password = generate_random_string(21)
     encrypted_password = encrypt_password(key_id, password)
     if encrypted_password['encrypted']:
-        return put_password_in_dynamodb(table_name,
-                                        stack_name,
-                                        username,
-                                        encrypted_password,
-                                        'rds_id')
-    else:
-        return encrypted_password
+        return put_password_in_dynamodb(
+            table_name,
+            stack_name,
+            username,
+            encrypted_password['password'],
+            'rds_id'
+        )
+    return encrypted_password
 
 
 def lambda_handler(event, context):
@@ -104,19 +110,27 @@ def lambda_handler(event, context):
         return send_response(event, response)
 
 
-    for key in ['KeyId', 'PasswordLength']:
-        if key not in event['ResourceProperties'].keys():
-            return send_response(event,
-                                 response,
-                                 status='FAILED',
-                                 reason='The properties KeyId and PasswordLength must not be empty'
-                                 )
+    for key in ['KeyId', 'TableName']:
+        if not key in event['ResourceProperties'].keys():
+            return send_response(
+                event,
+                response,
+                status='FAILED',
+                reason='The properties KeyId and TableName must not be empty'
+            )
 
-    creds = add_master_creds(event['ResourceProperties']['StackName'])
+    creds = add_master_creds(
+        event['ResourceProperties']['TableName'],
+        event['ResourceProperties']['StackName'],
+        event['ResourceProperties']['KeyId']
+        )
     if not creds['added']:
         response['Status'] = 'FAILED'
     response['Reason'] = creds['Reason']
-    return send_response(event, response)
+    return send_response(
+        event,
+        response
+    )
 
 
 # NEVER CHANGE THE SEND RESPONSE FUNCTION
@@ -195,4 +209,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     creds = add_master_creds(args.table_name, args.stack_name, args.key_id)
-    print creds['Reason']
+    print(creds['Reason'])
