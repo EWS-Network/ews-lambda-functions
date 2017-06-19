@@ -1,0 +1,259 @@
+---
+################################################################################
+#
+# Description
+#
+
+Description: >-
+  Template to create the RDS resources necessary for the application
+  Version : 2017-06-16
+  Author: John "Preston" M.
+
+################################################################################
+#
+# Parameters
+#
+
+Parameters:
+  VPCName:
+    Description: Name of the VPC in which  will be deployed
+    Type: String
+    MinLength: '3'
+    MaxLength: '255'
+    AllowedPattern: '[\x20-\x7E]*'
+    ConstraintDescription: can contain only ASCII characters.
+    Default: dev
+    AllowedValues:
+      - prod
+      - dev
+      - test
+      - staging
+
+  DBCapacity:
+    Description: >-
+      Size of storage allocated for the DB
+    Type: Number
+
+  DBInstanceType:
+    Description: >-
+      DB Instance Type
+    AllowedValues:
+      - db.t2.micro
+      - db.t2.small
+      - db.t2.medium
+      - db.t2.large
+      - db.m4.large
+      - db.m4.xlarge
+      - db.m4.2xlarge
+      - db.m4.4xlarge
+      - db.m4.10xlarge
+      - db.r3.large
+      - db.r3.xlarge
+      - db.r3.2xlarge
+      - db.r3.4xlarge
+      - db.r3.4xlarge
+
+  SubnetTag:
+    Description: >-
+      NameTag used
+
+
+
+################################################################################
+#
+# CONDITIONS
+#
+
+Conditions:
+  isProd:
+    Fn::Equals:
+      - !Ref VPCName
+      - Prod
+
+
+################################################################################
+#
+# MAPPINGS
+#
+
+Mappings:
+
+
+################################################################################
+#
+# RESOURCES
+#
+
+Resources:
+
+  ##############################################################################
+  #
+  # The LambdaFunctions
+  #
+
+
+  lambdaGetDBEngineVersion:
+    Type: AWS::CloudFormation::CustomResource
+    Version: '1.0'
+    Properties:
+      ServiceToken: arn:aws:lambda:eu-west-1:275250345139:function:cfGetDBEngineVersion
+      Engine: !FindInMap [rdsDB, !Ref VPCName, EngineName]
+
+
+  lambdaGetKmsKeyId:
+    Type: AWS::CloudFormation::CustomResource
+    Version: '1.0'
+    Properties:
+      ServiceToken: !Sub 'arn:aws:lambda:eu-west-1:${AWS::AccountId}:function:getKmsId'
+      KeyAlias: !Ref KeyAlias
+
+
+  lambdaSetRdsMasterCreds:
+    DependsOn:
+      - lambdaGetKmsKeyId
+    Type: AWS::CloudFormation::CustomResource
+    Version: '1.0'
+    Properties:
+      ServiceToken: !Sub 'arn:aws:lambda:eu-west-1:${AWS::AccountId}:function:setRdsMasterCreds'
+      KeyId: !GetAtt [ lambdaGetKmsKeyId, 'KeyId' ]
+      StackName: !Ref AWS::StackName
+      TableName: !Sub 'rds_${VPCName}'
+
+
+  lambdaGetDBPassword:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn:
+      - lambdaSetRdsMasterCreds
+    Version: '1.0'
+    Properties:
+      ServiceToken: !Sub 'arn:aws:lambda:eu-west-1:${AWS::AccountId}:function:getRdsMasterCreds'
+      StackName: !Ref AWS::StackName
+      TableName: 'rds_${VPCName}'
+
+
+  lambdaGetVpcId:
+    Type: AWS::CloudFormation::CustomResource
+    Version: '1.0'
+    Properties:
+      ServiceToken: arn:aws:lambda:eu-west-1:275250345139:function:cfGetVpcId
+      VpcName: !Ref VPCName
+
+
+  lambdaGetSubnets:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn: lambdaGetVpcId
+    Version: '1.0'
+    Properties:
+      ServiceToken: arn:aws:lambda:eu-west-1:275250345139:function:cfGetVpcSubnets
+      VpcId: !GetAtt [ lambdaGetVpcId, VpcId ]
+
+
+  ##############################################################################
+  #
+  # The DB
+  #
+
+  rdsDB:
+    Type: AWS::RDS::DBInstance
+    DependsOn:
+      - sgDatabase
+      - lambdaGetDBEngineVersion
+    DeletionPolicy: Snapshot
+    Properties:
+      DBName:
+        - Fn::Sub:
+            - '${DB_hash}_db'
+            - DB_hash: !GetAtt [ lambdaGetDBPassword, 'DbName' ]
+      StorageType: gp2
+      AllocatedStorage: !Ref DBCapacity
+      DBInstanceClass: 'MySQL'
+      DBSubnetGroupName: !Ref rdsSubnetGroup
+
+      Engine: MySQL
+      EngineVersion: !GetAtt [ lambdaGetDBEngineVersion, 'EngineVersion' ]
+
+      VPCSecurityGroups:
+        - !GetAtt [ sgDatabase, GroupId ]
+
+      AllowMajorVersionUpgrade: true
+      AutoMinorVersionUpgrade: true
+
+      MasterUsername: !GetAtt [ lambdaGetDBPassword, 'Username' ]
+      MasterUserPassword: !GetAtt [ lambdaGetDBPassword, 'Password' ]
+      MultiAZ:
+        Fn::If:
+          - isProd
+          - true
+          - false
+      BackupRetentionPeriod: !If [ isProd, '30', '0' ]
+      PreferredBackupWindow: 01:00-02:00
+      PreferredMaintenanceWindow: Sat:23:00-Sun:00:45
+      Tags:
+        - Key: Name
+          Value: !Sub 'rds-Mysql-${AWS::StackName}-${VPCName}'
+        - Key: VPCName
+          Value: !Ref VPCName
+
+  ##############################################################################
+  #
+  # Network settings
+  #
+
+  rdsSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub 'SubnetGroup for RDS in ${VPCName} for ${AWS::StackName}'
+      SubnetIds: !GetAtt [lambdaGetSubnets, DatabaseSubnet]
+      Tags:
+        - Key: VPCName
+          Value: !Ref VPCName
+        - Key: StackName
+          Value: !Ref AWS::StackName
+
+
+  sgDatabase:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RDS DB  Security Group
+      VpcId: !GetAtt [ lambdaGetVpcId, VpcId ]
+      Tags:
+      - Key: Name
+        Value: !Sub 'sg-database-${AWS::StackName}'
+
+
+################################################################################
+#
+# OUTPUTS
+#
+
+
+Outputs:
+  rdsDatabaseName:
+    Description: Name of the RDS Instance
+    Value: !Ref 'rdsDB'
+
+
+  rdsDatabaseEndpoint:
+    Description: A record to use as the CNAME for the mysql DB
+    Value: !GetAtt [rdsDB, Endpoint.Address]
+    Export:
+      Name: !Sub
+        - '${AWS::StackName}-${dbEndpoint}'
+        - dbEndpoint: !FindInMap [exportNames, rds, dbEndpoint]
+
+
+  rdsDatabaseSecurityGroup:
+    Description: SG ID of the RDS Instance
+    Value: !GetAtt [ sgDatabase, GroupId ]
+    Export:
+      Name: !Sub
+        - '${AWS::StackName}-${GroupId}'
+        - GroupId: !FindInMap [ exportNames, ec2SG, databaseSG ]
+
+
+################################################################################
+#
+# NEVER CHANGE
+#
+
+AWSTemplateFormatVersion: '2010-09-09'
