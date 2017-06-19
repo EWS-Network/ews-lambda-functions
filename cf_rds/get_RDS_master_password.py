@@ -16,15 +16,20 @@ import urlparse
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
 
+#
+# GLOBAL VARIABLES
+#
+
+table_keyid = 'dbid'
+
 
 def get_creds_from_dyndb(table_name,
-                         stack_name,
-                         attribute_name):
+                         stack_name):
     """
     Function to store the b64 password in DynamoDB
     :param table_name: Name of the table
     :param stack_name: Name of the RDS Stack
-    :param attribute_name: String of the unique attribute name of the DynDB Table
+    :param table_keyid: String of the unique attribute name of the DynDB Table
     """
 
     hash_string = hashlib.sha256(stack_name).hexdigest().strip()
@@ -33,7 +38,7 @@ def get_creds_from_dyndb(table_name,
 
     try:
         response = table.query(
-            KeyConditionExpression=Key(attribute_name).eq(hash_string)
+            KeyConditionExpression=Key(table_keyid).eq(hash_string)
         )
     except Exception as e:
         return {'found': False, 'Reason': e}
@@ -48,20 +53,22 @@ def get_master_creds(table_name,
     """
     Master function
     """
-    creds = get_creds_from_dyndb(table_name, stack_name, 'rds_id')
+    creds = get_creds_from_dyndb(table_name, stack_name)
 
     if not creds['found']:
         return {'obtained': False, 'Reason': creds['Reason']}
 
     password_b64 = creds['creds'][0]['b64_password']
     username = creds['creds'][0]['user_name']
+    dbname = creds['creds'][0][table_keyid][:16]
     password = decrypt_password(password_b64)
     if not password['decrypted']:
         return {'obtained': False, 'Reason': password['Reason']}
 
     data = {
-        'username': username,
-        'password': password['password']
+        'Username': username,
+        'Password': password['password'],
+        'DbName' : dbname
     }
     return {'obtained' : True, 'Reason': 'Successfully retrieved username and password', 'creds': data}
 

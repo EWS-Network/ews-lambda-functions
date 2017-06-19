@@ -22,7 +22,7 @@ from boto3.dynamodb.conditions import Key, Attr
 #
 
 
-table_keyid = 'rds_id'
+table_keyid = 'dbid'
 
 
 def encrypt_password(key_id=None, password=None):
