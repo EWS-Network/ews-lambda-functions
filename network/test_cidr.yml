@@ -1,0 +1,87 @@
+---
+################################################################################
+#
+# Description
+#
+
+Description: >-
+  Template to create the RDS resources necessary for the application
+  Version : 2017-01-27
+  Author: John M.
+
+################################################################################
+#
+# Parameters
+#
+
+#Parameters:
+
+
+################################################################################
+#
+# CONDITIONS
+#
+
+
+################################################################################
+#
+# MAPPINGS
+#
+
+
+
+################################################################################
+#
+# RESOURCES
+#
+
+Resources:
+
+  ##############################################################################
+  #
+  # The LambdaFunctions
+  #
+
+
+  lambdaGetSubnetsCidr:
+    Type: AWS::CloudFormation::CustomResource
+    Version: '1.0'
+    Properties:
+      ServiceToken: !Sub 'arn:aws:lambda:eu-west-1:${AWS::AccountId}:function:getSubnetsCidr'
+      CIDR: '10.242.0.0/22'
+
+
+  ##############################################################################
+  #
+  # The DB
+  #
+
+
+
+################################################################################
+#
+# OUTPUTS
+#
+
+
+Outputs:
+  publicSubnets:
+    Description: First Subnet for the PUBLICs
+    Value: !Select [ 0, !GetAtt [ lambdaGetSubnetsCidr, 'PublicSubnets' ]]
+
+  appSubnets:
+    Description: First Subnet for the APPs
+    Value: !Select [ 0, !GetAtt [ lambdaGetSubnetsCidr, 'AppSubnets' ]]
+
+
+  dbSubnets:
+    Description: First Subnet for the DBs
+    Value: !Select [ 0, !GetAtt [ lambdaGetSubnetsCidr, 'DBSubnets' ]]
+
+
+################################################################################
+#
+# NEVER CHANGE
+#
+
+AWSTemplateFormatVersion: '2010-09-09'
