@@ -3,10 +3,22 @@
 import os
 import sys
 import uuid
+import json
 import boto3
 import string
 import random
+import base64
+import hashlib
+import httplib
+import urlparse
 import argparse
+
+def delete_ssm_parameter(parameter_name):
+    """
+    """
+
+    client = boto3.client('ssm')
+    response = client.delete_parameter(Name=parameter_name)
 
 
 def store_secure_string(name, value, key_id):
@@ -59,6 +71,14 @@ def lambda_handler(event, context):
     username = generate_random_string(8)
     password = generate_random_string(16)
 
+    if (event['RequestType'] == 'Update'):
+        return send_response(event, response)
+
+    elif (event['RequestType'] == 'Delete'):
+        delete_ssm_parameter(username_key)
+        delete_ssm_parameter(password_key)
+        return send_response(event, response)
+
     key_id = event['ResourceProperties']['KeyId']
 
     set_1 = store_secure_string(username_key, username, key_id)
@@ -71,16 +91,15 @@ def lambda_handler(event, context):
             status='FAILED',
             reason="%s - %s" % (set_1[1], set_2[1])
         )
-    reponse['Data']={
-            username_key: username,
-            password_key: password
+    response['Data'] = {
+            'username': username,
+            'password': password
     }
     return send_response(
         event,
         response,
         reason="Successfully added user and password in SSM"
     )
-
 
 def send_response(request, response, status=None, reason=None):
     """
@@ -133,31 +152,3 @@ def generate_random_string(string_length=20, underscore=False):
     if underscore:
         return generated_string.replace('-', '_')
     return generated_string
-
-
-if __name__ == '__main__':
-    """
-    Use for CLI purposes
-    """
-
-    parser = argparse.ArgumentParser(description="Stores Secure strings in SSM")
-    parser.add_argument('--key-id', '-k', required=True)
-    parser.add_argument('--stack-name', '-s', required=True)
-
-    args = parser.parse_args()
-
-    lambda_handler(
-        {
-            "StackId": "arn:aws:cloudformation:us-west-2:EXAMPLE/stack-name/guid",
-            "ResponseURL": "http://pre-signed-S3-url-for-response",
-            "ResourceProperties":         {
-                'StackName': args.stack_name,
-                'KeyId': args.key_id
-            },
-            "RequestType": "Create",
-            "ResourceType": "Custom::TestResource",
-            "RequestId": "unique id for this create request",
-            "LogicalResourceId": "MyTestResource"
-        },
-        {}
-    )

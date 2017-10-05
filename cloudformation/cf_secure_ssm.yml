@@ -1,0 +1,70 @@
+---
+################################################################################
+#
+# Description
+#
+
+Description: >-
+  Test template to get username / password stored in SSM
+
+################################################################################
+#
+# Parameters
+#
+
+Parameters:
+
+  KmsKeyId:
+    Description: >-
+      KMS Key ID
+    Type: String
+    MinLength: 8
+    MaxLength: 128
+
+
+################################################################################
+#
+# MAPPINGS
+#
+
+#Mappings:
+
+
+################################################################################
+#
+# RESOURCES
+#
+
+Resources:
+
+  ##############################################################################
+  #
+  # The LambdaFunctions
+  #
+
+  lambdaGenerateUserPassword:
+    Type: AWS::CloudFormation::CustomResource
+    Version: '1.0'
+    Properties:
+      ServiceToken: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:cf_ssm_secure_string'
+      StackName: !Ref AWS::StackName
+      KeyId: !Ref KmsKeyId
+
+################################################################################
+#
+# OUTPUTS
+#
+
+
+Outputs:
+  username:
+    Description: Name of the RDS Instance
+    Value: !GetAtt [ lambdaGenerateUserPassword, username ]
+
+
+################################################################################
+#
+# NEVER CHANGE
+#
+
+AWSTemplateFormatVersion: '2010-09-09'
