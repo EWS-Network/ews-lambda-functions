@@ -179,3 +179,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     creds = get_master_creds(args.table_name, args.stack_name)
     print(creds['Reason'])
+    print creds

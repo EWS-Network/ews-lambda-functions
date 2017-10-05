@@ -11,8 +11,6 @@ import urlparse
 import boto3
 import pymysql as db
 
-
-
 class DBManager(object):
     """
     """
@@ -51,7 +49,7 @@ class DBManager(object):
         """
         """
         try:
-            self.cursor.execute('CREATE DATABASE %s' % (db_name))
+            self.cursor.execute('CREATE DATABASE IF NOT EXISTS %s' % (db_name))
             return True
         except Exception as e:
             print 'Error creating the DB. Reason :', e
@@ -104,18 +102,13 @@ def lambda_handler(event, context):
         endpoint=endpoint
     )
 
-    if manager.create_db(db_name):
-        if manager.create_user_grant(db_name, user_name, user_password):
-            print "User successfully granted all privileges"
-        else:
-            response['Status'] = 'FAILED'
-            response['Reason'] = 'Failed to assign privileges to user'
-            print "Failed to assign privileges to user"
+    manager.create_db(db_name)
+    if manager.create_user_grant(db_name, user_name, user_password):
+        print "User successfully granted all privileges"
     else:
         response['Status'] = 'FAILED'
-        response['Reason'] = 'Database was not created - Failure'
-
-
+        response['Reason'] = 'Failed to assign privileges to user'
+        print "Failed to assign privileges to user"
     return send_response(
         event,
         response
@@ -147,17 +140,3 @@ def send_response(request, response, status=None, reason=None):
         except:
             print("Failed to send the response to the provdided URL")
     return response
-
-
-if __name__ == '__main__':
-
-    manager = DBManager('root', 'Hermine', db_name='db_test')
-    print manager
-    if manager.create_db('db_test4'):
-        if manager.create_user_grant('db_test4', 'toto', 'Titiata'):
-            print "User successfully granted all privileges"
-        else:
-            print "Failed to assign privileges to user"
-
-    else:
-        print "Database was not created"
