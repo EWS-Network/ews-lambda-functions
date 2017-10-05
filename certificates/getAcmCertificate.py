@@ -20,8 +20,7 @@ from boto3.dynamodb.conditions import Key, Attr
 # GLOBAL VARIABLES
 #
 
-session = boto3.Session(profile_name='shortl')
-client = session.client('acm')
+client = boto3.client('acm')
 
 def get_all_certs(certs_list=[],
                   next_token=None):
@@ -52,17 +51,14 @@ def check_wildcard(fqdn, certificate):
     wildcard_capable = False
     domain_split = fqdn.split('.')
 
-    if len(domain_split) <=3:
+    cert_domain_split = certificate['DomainName'].split('.')
+
+    if (len(domain_split)) == (len(cert_domain_split)) and certificate['DomainName'].startswith('*.') != -1:
         wildcard_capable = True
+    print wildcard_capable
 
     if wildcard_capable:
-        domain = '*.%s.%s' % (domain_split[len(domain_split) -2], domain_split[len(domain_split) -1])
-        print domain
-        print certificate['DomainName']
-        if domain == certificate['DomainName']:
-            return True
-        else:
-            return False
+        return True
     else:
         return False
 
@@ -79,13 +75,10 @@ def find_certificate(fqdn, certs_list):
         if certificate['DomainName'] == fqdn:
             return certificate['CertificateArn']
         else:
-            print "Checking all alt names"
             for name in certificate['SubjectAlternativeNames']:
-                print name, fqdn
                 if name == fqdn:
                     return certificate['CertificateArn']
     return None
-
 
 def lambda_handler(event, context):
     """
@@ -109,12 +102,11 @@ def lambda_handler(event, context):
 
     # There is nothing to do for a delete or update request
 
-    if (event['RequestType'] == 'Delete') or \
-       (event['RequestType'] == 'Update'):
+    if (event['RequestType'] == 'Delete'):
         return send_response(event, response)
 
 
-    for key in ['FQDN']:
+    for key in ['WebDomain']:
         if not key in event['ResourceProperties'].keys():
             return send_response(
                 event,
@@ -122,6 +114,16 @@ def lambda_handler(event, context):
                 status='FAILED',
                 reason='FQDN must be present'
             )
+    web_domain = event['ResourceProperties']['WebDomain']
+    domain = web_domain.split('://')[1]
+    certs_list = get_all_certs()
+    certificate_arn = find_certificate(domain, certs_list)
+    if certificate_arn is not None:
+        response['Data'] = {}
+        response['Data']['CertificateArn'] = certificate_arn
+    else:
+        response['Status'] = 'FAILED'
+        response['Reason'] = 'The Certificate ARN could not be found for %s' % (domain)
     return send_response(
         event,
         response
@@ -171,3 +173,4 @@ if __name__ == '__main__':
     the_cert = find_certificate(args.domain_name, cert_list)
     print cert_list
     print the_cert
+
