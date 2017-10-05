@@ -1,1 +1,5 @@
 *~
+*.zip
+*.pyc
+cf_rds/rds_db_manager/*
+

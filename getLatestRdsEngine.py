@@ -20,31 +20,6 @@ def get_default_engine_version(engine='mysql'):
     return r_version['DBEngineVersions'][0]['EngineVersion']
 
 
-def send_response(request, response, status=None, reason=None):
-    """ Send our response to the pre-signed URL supplied by CloudFormation
-    If no ResponseURL is found in the request, there is no place to send a
-    response. This may be the case if the supplied event was for testing.
-    :param request: the event
-    :param reason: A string to describe the reason of the status
-    :param status: SUCCESS / FAILED
-    :param response: response data of the CF Template
-    """
-
-    if status is not None:
-        response['Status'] = status
-
-    if reason is not None:
-        response['Reason'] = reason
-
-    if 'ResponseURL' in request and request['ResponseURL']:
-        url = urlparse.urlparse(request['ResponseURL'])
-        body = json.dumps(response)
-        https = httplib.HTTPSConnection(url.hostname)
-        https.request('PUT', url.path + '?' + url.query, body)
-
-    return response
-
-
 def lambda_handler(event, context):
     """
     Handler function for AWS Lambda
@@ -79,3 +54,27 @@ def lambda_handler(event, context):
         response['Reason'] = "Version for %s is %s" % (event['ResourceProperties']['Engine'],
                                                        version)
     return send_response(event, response)
+
+def send_response(request, response, status=None, reason=None):
+    """ Send our response to the pre-signed URL supplied by CloudFormation
+    If no ResponseURL is found in the request, there is no place to send a
+    response. This may be the case if the supplied event was for testing.
+    :param request: the event
+    :param reason: A string to describe the reason of the status
+    :param status: SUCCESS / FAILED
+    :param response: response data of the CF Template
+    """
+
+    if status is not None:
+        response['Status'] = status
+
+    if reason is not None:
+        response['Reason'] = reason
+
+    if 'ResponseURL' in request and request['ResponseURL']:
+        url = urlparse.urlparse(request['ResponseURL'])
+        body = json.dumps(response)
+        https = httplib.HTTPSConnection(url.hostname)
+        https.request('PUT', url.path + '?' + url.query, body)
+
+    return response
