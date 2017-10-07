@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-import os
-import sys
 import uuid
 import json
 import boto3
@@ -11,7 +9,6 @@ import base64
 import hashlib
 import httplib
 import urlparse
-import argparse
 
 def delete_ssm_parameter(parameter_name):
     """
