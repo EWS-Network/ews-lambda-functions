@@ -1,0 +1,85 @@
+---
+################################################################################
+#
+# Description
+#
+
+Description: >-
+  CF Template for the IAM role of the SSM Lambda register function
+
+################################################################################
+#
+# Parameters
+#
+
+Parameters:
+
+  RoleName:
+    Description: >-
+      Name of the role for the Lambna function
+    Type: String
+    MinLength: 4
+    MaxLength: 64
+
+
+################################################################################
+#
+# RESOURCES
+#
+
+Resources:
+
+  iamLambdaRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action:
+              - 'sts:AssumeRole'
+
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      RoleName: !Ref RoleName
+
+  iamLambdaPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: lambda-AllowSSM-BasicUsage
+      Roles:
+        - !Ref iamLambdaRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "Stmt1507232964000"
+            Effect: "Allow"
+            Action:
+              - "ssm:GetParameter"
+              - "ssm:GetParameters"
+              - "ssm:PutParameter"
+              - "ssm:DeleteParameter"
+            Resource:
+              - "*"
+
+
+################################################################################
+#
+# OUTPUTS
+#
+
+
+Outputs:
+  RoleName:
+    Description: Name of the role for the Lambda SSM Lambda function
+    Value: !Ref iamLambdaRole
+
+
+################################################################################
+#
+# NEVER CHANGE
+#
+
+AWSTemplateFormatVersion: '2010-09-09'
