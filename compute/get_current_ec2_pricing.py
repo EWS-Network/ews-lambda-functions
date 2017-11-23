@@ -110,10 +110,8 @@ def lambda_handler(event, context):
 
     # There is nothing to do for a delete or update request
 
-    if (event['RequestType'] == 'Delete') or \
-       (event['RequestType'] == 'Update'):
+    if event['RequestType'] == 'Delete':
         return send_response(event, response)
-
 
     for key in ['InstanceType', 'Region']:
         if not key in event['ResourceProperties'].keys():
@@ -124,17 +122,28 @@ def lambda_handler(event, context):
                 reason='The properties TableName and StackName must be present'
             )
 
-    region_url = build_region_pricing_url(service_details, event['ResourceProperties']['Region'])
-    sku = get_instance_type_sku(event['ResourceProperties']['InstanceType'], region_url)
+    service_details = get_service_details()
+    region_url = build_region_pricing_url(
+        service_details,
+        event['ResourceProperties']['Region']
+    )
+    sku = get_instance_type_sku(
+        event['ResourceProperties']['InstanceType'],
+        region_url
+    )
     cost_per_hour = get_sku_rate(sku, region_url)
 
-    if cost_per_hour:
+    if not cost_per_hour:
         response['Status'] = 'FAILED'
     else:
         response['Data'] = {
             'CostPerHour': cost_per_hour
         }
-    response['Reason'] = "%s costs %s in %s" % (instance_type, cost_per_hour, region_name)
+    response['Reason'] = "%s costs %s in %s" % (
+        event['ResourceProperties']['InstanceType'],
+        cost_per_hour,
+        event['ResourceProperties']['Region']
+    )
     return send_response(
         event,
         response
